@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mission Conte : Malik et Flèche</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Tone.js pour les effets sonores natifs sans fichiers externes -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&family=Fredoka:wght@500;600;700&display=swap');
+
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background: radial-gradient(circle at top center, #f0f7ff 0%, #e2eeff 100%);
+    }
+
+    .title-font {
+      font-family: 'Fredoka', cursive, sans-serif;
+    }
+
+    /* Animation pulse douce pour l'équipe dont c'est le tour */
+    @keyframes turnGlow {
+      0%, 100% {
+        box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.45), 0 10px 15px -3px rgba(0, 0, 0, 0.08);
+        transform: translateY(-2px);
+      }
+      50% {
+        box-shadow: 0 0 0 10px rgba(59, 130, 246, 0), 0 10px 15px -3px rgba(0, 0, 0, 0.08);
+        transform: translateY(-4px);
+      }
+    }
+
+    .team-card-active {
+      animation: turnGlow 2.2s infinite ease-in-out;
+    }
+
+    /* Animation de rebond pour les confettis ou badges */
+    @keyframes popIn {
+      0% { transform: scale(0.92); opacity: 0; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+
+    .animate-pop {
+      animation: popIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
+    /* Canvas pour les confettis au premier plan sans bloquer les clics */
+    #confetti-canvas {
+      pointer-events: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 50;
+    }
+  </style>
+</head>
+<body class="min-h-screen text-slate-800 p-3 sm:p-6 flex flex-col justify-between antialiased">
+  <canvas id="confetti-canvas"></canvas>
+
+  <main class="max-w-4xl w-full mx-auto bg-white/95 backdrop-blur-md rounded-3xl shadow-xl border border-blue-100 p-5 sm:p-8 transition-all">
+    
+    <!-- En-tête : Titre & Contrôle audio -->
+    <header class="flex flex-col sm:flex-row items-center justify-between gap-4 border-b border-slate-100 pb-5">
+      <div class="text-center sm:text-left">
+        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold bg-blue-100 text-blue-800 mb-2">
+          ✨ Conte interactif pour la classe
+        </span>
+        <h1 class="text-2xl sm:text-4xl font-black text-slate-900 title-font tracking-tight">
+          🦅 Malik & Flèche
+        </h1>
+        <p class="text-sm sm:text-base text-slate-500 mt-1">
+          Défis de lecture, esprit d'équipe et potion magique !
+        </p>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <button id="soundToggle" onclick="basculerSon()" class="px-3.5 py-2 text-sm font-semibold rounded-2xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 transition flex items-center gap-2 shadow-sm" aria-label="Activer ou couper le son">
+          <span id="soundIcon">🔊</span>
+          <span id="soundText" class="hidden sm:inline">Son activé</span>
+        </button>
+      </div>
+    </header>
+
+    <!-- Zone de sélection / scores des équipes -->
+    <section class="mt-6">
+      <div class="flex items-center justify-between mb-3 px-1">
+        <h2 class="text-xs sm:text-sm font-bold uppercase tracking-wider text-slate-400">
+          Les Équipes en lice
+        </h2>
+        <span class="text-xs text-blue-600 font-semibold bg-blue-50 px-2.5 py-0.5 rounded-full">
+          💡 Cliquez pour attribuer la question à une équipe
+        </span>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3.5" id="equipesContainer">
+        <!-- Équipe 1 -->
+        <button onclick="choisirEquipe(0)" id="card-0" class="equipe-card relative p-4 rounded-2xl border-2 transition-all duration-300 text-left bg-slate-50 border-slate-200 hover:border-blue-300 flex items-center justify-between group">
+          <div class="flex items-center gap-3">
+            <span class="text-3xl p-2 bg-blue-100 rounded-xl">📖</span>
+            <div>
+              <p class="font-bold text-slate-800 text-sm sm:text-base leading-snug">Lecteurs malins</p>
+              <p class="text-xs text-slate-400 group-[.team-card-active]:text-blue-600 font-medium">À leur tour</p>
+            </div>
+          </div>
+          <div class="text-right">
+            <span class="text-2xl font-black text-blue-600" id="score0">0</span>
+            <span class="text-xs font-bold text-slate-400 block -mt-1">pts</span>
+          </div>
+        </button>
+
+        <!-- Équipe 2 -->
+        <button onclick="choisirEquipe(1)" id="card-1" class="equipe-card relative p-4 rounded-2xl border-2 transition-all duration-300 text-left bg-slate-50 border-slate-200 hover:border-purple-300 flex items-center justify-between group">
+          <div class="flex items-center gap-3">
+            <span class="text-3xl p-2 bg-purple-100 rounded-xl">🔎</span>
+            <div>
+              <p class="font-bold text-slate-800 text-sm sm:text-base leading-snug">Détectives</p>
+              <p class="text-xs text-slate-400 group-[.team-card-active]:text-purple-600 font-medium">En attente</p>
+            </div>
+          </div>
+          <div class="text-right">
+            <span class="text-2xl font-black text-purple-600" id="score1">0</span>
+            <span class="text-xs font-bold text-slate-400 block -mt-1">pts</span>
+          </div>
+        </button>
+
+        <!-- Équipe 3 -->
+        <button onclick="choisirEquipe(2)" id="card-2" class="equipe-card relative p-4 rounded-2xl border-2 transition-all duration-300 text-left bg-slate-50 border-slate-200 hover:border-amber-300 flex items-center justify-between group">
+          <div class="flex items-center gap-3">
+            <span class="text-3xl p-2 bg-amber-100 rounded-xl">🏆</span>
+            <div>
+              <p class="font-bold text-slate-800 text-sm sm:text-base leading-snug">Aventuriers</p>
+              <p class="text-xs text-slate-400 group-[.team-card-active]:text-amber-600 font-medium">En attente</p>
+            </div>
+          </div>
+          <div class="text-right">
+            <span class="text-2xl font-black text-amber-600" id="score2">0</span>
+            <span class="text-xs font-bold text-slate-400 block -mt-1">pts</span>
+          </div>
+        </button>
+      </div>
+    </section>
+
+    <!-- Zone de Jeu Interactive -->
+    <section id="jeu" class="mt-8 transition-opacity duration-300">
+      <!-- Progression & Tour Actuel -->
+      <div class="bg-slate-50 border border-slate-200/80 rounded-2xl p-4 mb-6 shadow-inner">
+        <div class="flex flex-wrap items-center justify-between gap-2 mb-2">
+          <span id="numero" class="text-xs font-extrabold uppercase tracking-wider text-slate-500 bg-white px-3 py-1 rounded-full border border-slate-200">
+            Défi 1 sur 12
+          </span>
+          <div id="tourIndicateur" class="text-xs sm:text-sm font-semibold flex items-center gap-2 text-slate-700">
+            <!-- Rempli par JavaScript -->
+          </div>
+        </div>
+        <!-- Barre de progression -->
+        <div class="w-full bg-slate-200 h-2.5 rounded-full overflow-hidden">
+          <div id="progressBar" class="bg-blue-600 h-full w-0 transition-all duration-500 rounded-full"></div>
+        </div>
+      </div>
+
+      <!-- Question -->
+      <div class="my-4 text-center">
+        <h2 id="question" class="text-xl sm:text-2xl md:text-3xl font-extrabold text-slate-900 leading-snug px-2">
+          Chargement de l'énigme...
+        </h2>
+      </div>
+
+      <!-- Choix de Réponses -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5 my-6" id="reponses">
+        <!-- Généré dynamiquement -->
+      </div>
+
+      <!-- Bloc d'explication et feedback -->
+      <div id="feedbackBox" class="min-h-[70px] p-4 rounded-2xl text-center hidden mb-6 animate-pop" role="alert" aria-live="assertive">
+        <p id="feedbackText" class="font-bold text-base sm:text-lg"></p>
+        <p id="explicationText" class="text-sm mt-1 opacity-90"></p>
+      </div>
+
+      <!-- Barre d'actions -->
+      <div class="flex flex-wrap items-center justify-center gap-3 pt-3 border-t border-slate-100">
+        <button id="suivant" onclick="questionSuivante()" disabled class="px-6 py-3 rounded-2xl font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-blue-600 transition shadow-md shadow-blue-500/20 flex items-center gap-2">
+          <span>Question suivante</span>
+          <span>→</span>
+        </button>
+
+        <button onclick="afficherResultat()" class="px-4 py-3 rounded-2xl font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 transition">
+          📊 Voir le classement
+        </button>
+
+        <button onclick="recommencer()" class="px-4 py-3 rounded-2xl font-semibold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-100 transition">
+          🔄 Recommencer
+        </button>
+      </div>
+    </section>
+
+    <!-- Écran Résultats & Podium Final -->
+    <section id="resultat" class="mt-8 hidden animate-pop">
+      <div class="text-center mb-8">
+        <span class="text-5xl">👑</span>
+        <h2 class="text-3xl sm:text-4xl font-black title-font text-slate-900 mt-2">
+          Fin de l'Aventure !
+        </h2>
+        <p class="text-slate-600 mt-1 text-base">
+          Voici le grand palmarès de la mission « Malik et Flèche » !
+        </p>
+      </div>
+
+      <!-- Podium dynamique -->
+      <div class="max-w-xl mx-auto space-y-3.5" id="classement">
+        <!-- Rempli par JavaScript -->
+      </div>
+
+      <div class="text-center mt-9 flex flex-wrap justify-center gap-3">
+        <button onclick="recommencer()" class="px-8 py-3.5 rounded-2xl font-bold text-white bg-blue-600 hover:bg-blue-700 transition shadow-lg shadow-blue-500/25 flex items-center gap-2">
+          <span>🚀 Rejouer une partie</span>
+        </button>
+      </div>
+    </section>
+  </main>
+
+  <!-- Pied de page pédagogique -->
+  <footer class="text-center text-xs text-slate-400 mt-6 pb-2">
+    Adapté du conte <em>Malik et Flèche</em> • Conçu pour l'apprentissage de la compréhension de lecture.
+  </footer>
+
+  <script>
+    // --- QUESTIONS SUR LE CONTE ---
+    const questions = [
+      {
+        q: "Comment s'appelle le jeune paysan ?",
+        r: ["Nestor", "Malik", "Malidor", "Flèche"],
+        correct: 1,
+        exp: "Le jeune paysan travailleur et courageux s'appelle Malik."
+      },
+      {
+        q: "Pourquoi Malik est-il heureux au début du conte ?",
+        r: [
+          "Il est devenu roi du royaume",
+          "Il a trouvé un trésor caché",
+          "Il aime son travail et va épouser Mina",
+          "Il a déjà vaincu l'ogre"
+        ],
+        correct: 2,
+        exp: "Malik aime travailler ses terres au grand air et s'apprête à se marier avec sa fiancée Mina."
+      },
+      {
+        q: "Qui a enlevé Mina ?",
+        r: ["Malidor le sage", "Flèche l'oiseau", "La mère de Mina", "Nestor, l'ogre"],
+        correct: 3,
+        exp: "C'est le terrible géant Nestor qui a kidnappé Mina pour l'enfermer dans son château."
+      },
+      {
+        q: "Qui est Flèche ?",
+        r: ["Un aigle fidèle", "Un cheval rapide", "Un magicien savant", "Un ami paysan"],
+        correct: 0,
+        exp: "Flèche est un magnifique aigle royal aux ailes d'or qui accompagne et aide Malik."
+      },
+      {
+        q: "Qui Malik sauve-t-il dans les remous de la rivière ?",
+        r: ["Mina", "Un vieil homme en danger", "Un petit enfant", "Nestor"],
+        correct: 1,
+        exp: "Sans hésiter, Malik plonge dans l'eau agitée pour sauver un vieillard de la noyade."
+      },
+      {
+        q: "Qui est réellement ce vieil homme secouru ?",
+        r: ["Le roi du pays", "Le père de Mina", "Malidor, le puissant magicien", "Un serviteur de Nestor"],
+        correct: 2,
+        exp: "L'homme n'était autre que le puissant magicien Malidor, qui récompensera Malik."
+      },
+      {
+        q: "Quel pouvoir confère la potion magique donnée à Malik ?",
+        r: [
+          "Elle le rend totalement invisible",
+          "Elle plonge ses ennemis dans le sommeil",
+          "Elle le transforme en aigle",
+          "Elle le fait rapetisser comme une fourmi"
+        ],
+        correct: 3,
+        exp: "La potion permet à Malik de rapetisser jusqu'à devenir aussi minuscule qu'un insecte."
+      },
+      {
+        q: "À quoi sert le bonbon magique offert par Malidor ?",
+        r: [
+          "À retrouver sa taille normale",
+          "À endormir le monstre Nestor",
+          "À faire voler Mina dans les airs",
+          "À ouvrir toutes les portes du donjon"
+        ],
+        correct: 0,
+        exp: "Dès que Malik croque le bonbon, il retrouve instantanément sa véritable taille humaine."
+      },
+      {
+        q: "Où l'aigle Flèche dépose-t-il le minuscule Malik ?",
+        r: [
+          "Dans une sombre forêt",
+          "Sur le donjon du château de l'ogre",
+          "Au bord de la rivière Enchantée",
+          "Devant la chaumière de Mina"
+        ],
+        correct: 1,
+        exp: "Flèche vole haut dans les cieux et dépose délicatement Malik sur le donjon du château de Nestor."
+      },
+      {
+        q: "Comment Malik réussit-il à rapetisser l'ogre Nestor ?",
+        r: [
+          "Il lui donne le bonbon magique",
+          "Il le pousse dans la rivière",
+          "Il verse la potion dans sa gorge endormie",
+          "Il récite une formule de Malidor"
+        ],
+        correct: 2,
+        exp: "S'approchant sans bruit, Malik verse les gouttes de potion directement dans la bouche de l'ogre !"
+      },
+      {
+        q: "Où Mina est-elle gardée prisonnière ?",
+        r: [
+          "Perdue au fond de la forêt",
+          "Sur une île flottante",
+          "Dans une haute cage en or",
+          "Dans le cachot sous le donjon"
+        ],
+        correct: 3,
+        exp: "Mina était enfermée au sous-sol du château, dans le cachot situé sous la grande tour."
+      },
+      {
+        q: "Comment se termine ce merveilleux conte ?",
+        r: [
+          "Malik et Mina se marient et vivent heureux au château",
+          "Mina reste captive de l'ogre",
+          "Malik rentre seul cultiver ses champs",
+          "Nestor reprend le pouvoir"
+        ],
+        correct: 0,
+        exp: "Le bien triomphe : Malik libère Mina, ils célèbrent leur mariage au château et coulent des jours paisibles."
+      }
+    ];
+
+    const equipes = [
+      { nom: "Les Lecteurs malins", icone: "📖", couleur: "blue", border: "border-blue-500", bgLight: "bg-blue-50", text: "text-blue-700" },
+      { nom: "Les Détectives", icone: "🔎", couleur: "purple", border: "border-purple-500", bgLight: "bg-purple-50", text: "text-purple-700" },
+      { nom: "Les Aventuriers", icone: "🏆", couleur: "amber", border: "border-amber-500", bgLight: "bg-amber-50", text: "text-amber-700" }
+    ];
+
+    let scores = [0, 0, 0];
+    let equipeActive = 0;
+    let indexQuestion = 0;
+    let repondu = false;
+    let sonActive = true;
+
+    // --- SYNTHÈSE SONORE AVEC TONE.JS ---
+    let synth = null;
+
+    function initAudio() {
+      if (!synth && window.Tone) {
+        try {
+          synth = new Tone.PolySynth(Tone.Synth, {
+            oscillator: { type: "triangle" },
+            envelope: { attack: 0.01, decay: 0.15, sustain: 0.1, release: 0.4 }
+          }).toDestination();
+          synth.volume.value = -6;
+        } catch (e) {
+          console.warn("Audio non initialisé", e);
+        }
+      }
+      if (window.Tone && Tone.context.state !== 'running') {
+        Tone.start();
+      }
+    }
+
+    function jouerSonSucces() {
+      if (!sonActive) return;
+      initAudio();
+      try {
+        const now = Tone.now();
+        synth.triggerAttackRelease("C5", "16n", now);
+        synth.triggerAttackRelease("E5", "16n", now + 0.08);
+        synth.triggerAttackRelease("G5", "16n", now + 0.16);
+        synth.triggerAttackRelease("C6", "8n", now + 0.24);
+      } catch (e) {}
+    }
+
+    function jouerSonErreur() {
+      if (!sonActive) return;
+      initAudio();
+      try {
+        const now = Tone.now();
+        synth.triggerAttackRelease("F3", "16n", now);
+        synth.triggerAttackRelease("D3", "8n", now + 0.1);
+      } catch (e) {}
+    }
+
+    function jouerFanfare() {
+      if (!sonActive) return;
+      initAudio();
+      try {
+        const now = Tone.now();
+        synth.triggerAttackRelease("G4", "8n", now);
+        synth.triggerAttackRelease("C5", "8n", now + 0.15);
+        synth.triggerAttackRelease("E5", "8n", now + 0.3);
+        synth.triggerAttackRelease("G5", "4n", now + 0.45);
+        synth.triggerAttackRelease("E5", "16n", now + 0.7);
+        synth.triggerAttackRelease("G5", "2n", now + 0.85);
+      } catch (e) {}
+    }
+
+    function basculerSon() {
+      sonActive = !sonActive;
+      const icon = document.getElementById("soundIcon");
+      const text = document.getElementById("soundText");
+      if (sonActive) {
+        icon.textContent = "🔊";
+        text.textContent = "Son activé";
+        initAudio();
+      } else {
+        icon.textContent = "🔇";
+        text.textContent = "Son coupé";
+      }
+    }
+
+    // --- EFFET CONFETTI CANVAS ---
+    const canvas = document.getElementById("confetti-canvas");
+    const ctx = canvas.getContext("2d");
+    let confettiParticles = [];
+    let animationId = null;
+
+    function resizeCanvas() {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    }
+    window.addEventListener("resize", resizeCanvas);
+    resizeCanvas();
+
+    function lancerConfettis(nombre = 70) {
+      const colors = ["#3b82f6", "#10b981", "#f59e0b", "#ec4899", "#8b5cf6", "#06b6d4"];
+      for (let i = 0; i < nombre; i++) {
+        confettiParticles.push({
+          x: Math.random() * canvas.width,
+          y: -20,
+          w: Math.random() * 9 + 5,
+          h: Math.random() * 5 + 4,
+          color: colors[Math.floor(Math.random() * colors.length)],
+          vx: (Math.random() - 0.5) * 6,
+          vy: Math.random() * 4 + 3,
+          rot: Math.random() * 360,
+          rotSpeed: (Math.random() - 0.5) * 12
+        });
+      }
+      if (!animationId) animerConfettis();
+    }
+
+    function animerConfettis() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      for (let i = confettiParticles.length - 1; i >= 0; i--) {
+        const p = confettiParticles[i];
+        p.x += p.vx;
+        p.y += p.vy;
+        p.rot += p.rotSpeed;
+
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate((p.rot * Math.PI) / 180);
+        ctx.fillStyle = p.color;
+        ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h);
+        ctx.restore();
+
+        if (p.y > canvas.height + 20) {
+          confettiParticles.splice(i, 1);
+        }
+      }
+
+      if (confettiParticles.length > 0) {
+        animationId = requestAnimationFrame(animerConfettis);
+      } else {
+        animationId = null;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+      }
+    }
+
+    // --- GESTION DU JEU ---
+    function choisirEquipe(index) {
+      equipeActive = index;
+      mettreAJourAffichageEquipes();
+      mettreAJourIndicateurTour();
+    }
+
+    function mettreAJourAffichageEquipes() {
+      equipes.forEach((eq, i) => {
+        const card = document.getElementById(`card-${i}`);
+        const statusText = card.querySelector(".group\\[\\.team-card-active\\]\\:text-" + eq.couleur + "-600") || card.querySelectorAll("p")[1];
+
+        if (i === equipeActive) {
+          card.className = `equipe-card team-card-active relative p-4 rounded-2xl border-2 transition-all duration-300 text-left bg-white ${eq.border} shadow-lg ring-2 ring-${eq.couleur}-300 flex items-center justify-between group`;
+          if (statusText) statusText.textContent = "⭐ Au tour de jouer";
+        } else {
+          card.className = `equipe-card relative p-4 rounded-2xl border-2 transition-all duration-300 text-left bg-slate-50 border-slate-200 hover:border-slate-300 flex items-center justify-between group opacity-80 hover:opacity-100`;
+          if (statusText) statusText.textContent = "En attente";
+        }
+      });
+    }
+
+    function mettreAJourIndicateurTour() {
+      const eq = equipes[equipeActive];
+      const indicateur = document.getElementById("tourIndicateur");
+      indicateur.innerHTML = `
+        <span class="text-slate-500">C'est au tour de :</span>
+        <span class="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold ${eq.bgLight} ${eq.text} border border-current">
+          ${eq.icone} ${eq.nom}
+        </span>
+      `;
+    }
+
+    function afficherQuestion() {
+      if (indexQuestion >= questions.length) {
+        afficherResultat();
+        return;
+      }
+
+      repondu = false;
+      const q = questions[indexQuestion];
+
+      // Progression
+      const progressPercent = ((indexQuestion) / questions.length) * 100;
+      document.getElementById("progressBar").style.width = `${progressPercent}%`;
+      document.getElementById("numero").textContent = `Défi ${indexQuestion + 1} sur ${questions.length}`;
+
+      // Texte de la question
+      document.getElementById("question").textContent = q.q;
+
+      // Réinitialisation feedback et bouton suivant
+      const feedbackBox = document.getElementById("feedbackBox");
+      feedbackBox.className = "min-h-[70px] p-4 rounded-2xl text-center hidden mb-6 animate-pop";
+      document.getElementById("feedbackText").textContent = "";
+      document.getElementById("explicationText").textContent = "";
+      document.getElementById("suivant").disabled = true;
+
+      // Boutons de réponses
+      const zone = document.getElementById("reponses");
+      zone.innerHTML = "";
+
+      const lettres = ["A", "B", "C", "D"];
+      q.r.forEach((texte, index) => {
+        const bouton = document.createElement("button");
+        bouton.className = "reponse-btn group relative flex items-center p-4 rounded-2xl border-2 border-slate-200 bg-white hover:bg-blue-50/70 hover:border-blue-400 text-left font-semibold text-slate-800 transition duration-150 shadow-sm active:scale-[0.98]";
+        
+        bouton.innerHTML = `
+          <span class="flex-shrink-0 w-8 h-8 rounded-xl bg-slate-100 group-hover:bg-blue-600 group-hover:text-white flex items-center justify-center font-bold text-slate-600 text-sm mr-3 transition-colors duration-150">
+            ${lettres[index]}
+          </span>
+          <span class="text-sm sm:text-base leading-relaxed flex-grow">${texte}</span>
+        `;
+
+        bouton.onclick = () => verifierReponse(index, bouton);
+        zone.appendChild(bouton);
+      });
+
+      mettreAJourAffichageEquipes();
+      mettreAJourIndicateurTour();
+    }
+
+    function verifierReponse(indexChoisi, boutonChoisi) {
+      if (repondu) return;
+      repondu = true;
+
+      const q = questions[indexQuestion];
+      const boutons = document.querySelectorAll(".reponse-btn");
+      const feedbackBox = document.getElementById("feedbackBox");
+      const feedbackText = document.getElementById("feedbackText");
+      const explicationText = document.getElementById("explicationText");
+
+      // Désactiver tous les choix
+      boutons.forEach((btn, i) => {
+        btn.disabled = true;
+        btn.classList.remove("hover:bg-blue-50/70", "hover:border-blue-400", "active:scale-[0.98]");
+        
+        if (i === q.correct) {
+          btn.classList.add("bg-emerald-50", "border-emerald-500", "text-emerald-900", "ring-2", "ring-emerald-300");
+          const badge = btn.querySelector("span:first-child");
+          if (badge) {
+            badge.className = "flex-shrink-0 w-8 h-8 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-bold text-sm mr-3";
+            badge.textContent = "✓";
+          }
+        }
+      });
+
+      // Gestion de la réponse
+      if (indexChoisi === q.correct) {
+        scores[equipeActive] += 10;
+        jouerSonSucces();
+        lancerConfettis(45);
+
+        feedbackBox.classList.remove("hidden");
+        feedbackBox.classList.add("bg-emerald-100/80", "border", "border-emerald-300", "text-emerald-900");
+        feedbackText.innerHTML = `🎉 Exactement ! +10 points pour <strong>${equipes[equipeActive].nom}</strong> !`;
+        explicationText.textContent = q.exp;
+      } else {
+        jouerSonErreur();
+        boutonChoisi.classList.add("bg-rose-50", "border-rose-400", "text-rose-900");
+        const badgeErr = boutonChoisi.querySelector("span:first-child");
+        if (badgeErr) {
+          badgeErr.className = "flex-shrink-0 w-8 h-8 rounded-xl bg-rose-600 text-white flex items-center justify-center font-bold text-sm mr-3";
+          badgeErr.textContent = "✕";
+        }
+
+        feedbackBox.classList.remove("hidden");
+        feedbackBox.classList.add("bg-rose-100/80", "border", "border-rose-300", "text-rose-900");
+        feedbackText.innerHTML = `❌ Pas tout à fait !`;
+        explicationText.textContent = q.exp;
+      }
+
+      actualiserScores();
+      document.getElementById("suivant").disabled = false;
+      document.getElementById("suivant").focus();
+    }
+
+    function actualiserScores() {
+      scores.forEach((score, i) => {
+        const scoreElem = document.getElementById("score" + i);
+        if (scoreElem) scoreElem.textContent = score;
+      });
+    }
+
+    function questionSuivante() {
+      indexQuestion++;
+      // Passage automatique au tour de l'équipe suivante
+      equipeActive = (equipeActive + 1) % equipes.length;
+      afficherQuestion();
+    }
+
+    function afficherResultat() {
+      // Barre à 100%
+      document.getElementById("progressBar").style.width = "100%";
+      document.getElementById("jeu").style.display = "none";
+      const resSection = document.getElementById("resultat");
+      resSection.classList.remove("hidden");
+
+      jouerFanfare();
+      lancerConfettis(120);
+
+      const zoneClassement = document.getElementById("classement");
+      zoneClassement.innerHTML = "";
+
+      // Trier les équipes selon leur score
+      const tableauFinal = equipes.map((eq, i) => ({
+        ...eq,
+        score: scores[i]
+      })).sort((a, b) => b.score - a.score);
+
+      const medailles = [
+        { icon: "🥇", label: "Grand Vainqueur", bg: "bg-amber-100/90 border-amber-300 text-amber-950 ring-2 ring-amber-400/50" },
+        { icon: "🥈", label: "2e Place", bg: "bg-slate-100 border-slate-300 text-slate-800" },
+        { icon: "🥉", label: "3e Place", bg: "bg-orange-50 border-orange-200 text-orange-900" }
+      ];
+
+      tableauFinal.forEach((eq, index) => {
+        const rang = medailles[index] || { icon: "⭐", label: `${index + 1}e`, bg: "bg-slate-50 border-slate-200 text-slate-800" };
+        const carte = document.createElement("div");
+        carte.className = `p-4 sm:p-5 rounded-2xl border flex items-center justify-between ${rang.bg} shadow-sm`;
+
+        carte.innerHTML = `
+          <div class="flex items-center gap-3 sm:gap-4">
+            <span class="text-3xl sm:text-4xl filter drop-shadow">${rang.icon}</span>
+            <div>
+              <span class="text-xs font-black tracking-wider uppercase opacity-70 block">${rang.label}</span>
+              <h3 class="text-lg sm:text-xl font-black">${eq.nom}</h3>
+            </div>
+          </div>
+          <div class="text-right">
+            <span class="text-2xl sm:text-3xl font-black">${eq.score}</span>
+            <span class="text-xs font-semibold block opacity-75">points</span>
+          </div>
+        `;
+        zoneClassement.appendChild(carte);
+      });
+    }
+
+    function recommencer() {
+      scores = [0, 0, 0];
+      equipeActive = 0;
+      indexQuestion = 0;
+
+      document.getElementById("jeu").style.display = "block";
+      document.getElementById("resultat").classList.add("hidden");
+
+      actualiserScores();
+      choisirEquipe(0);
+      afficherQuestion();
+    }
+
+    // Initialisation
+    window.onload = function() {
+      actualiserScores();
+      afficherQuestion();
+    };
+  </script>
+</body>
+</html>
